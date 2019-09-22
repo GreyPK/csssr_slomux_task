@@ -105,7 +105,6 @@ const reducer = (state = 1, action) => {
 
 class IntervalComponent extends React.Component {
   render() {
-    console.log(`currentInterval: ${this.props.currentInterval}`)
     return (
       <div>
         <span>
