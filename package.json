@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "prop-types": "^15.7.2",
     "react": "^16.9.0",
     "react-dom": "^16.9.0",
     "react-scripts": "3.1.2"
@@ -26,6 +27,35 @@
       "last 1 chrome version",
       "last 1 firefox version",
       "last 1 safari version"
+    ]
+  },
+  "prettier": {
+    "tabWidth": 2,
+    "overrides": [
+      {
+        "files": [
+          "*.js",
+          "*.jsx"
+        ],
+        "options": {
+          "tabWidth": 2,
+          "trailingComma": "es5",
+          "semi": false,
+          "singleQuote": true,
+          "jsxSingleQuote": true
+        }
+      },
+      {
+        "files": [
+          "*.html",
+          "*.css"
+        ],
+        "options": {
+          "tabWidth": 2,
+          "semi": true,
+          "singleQuote": false
+        }
+      }
     ]
   }
 }
