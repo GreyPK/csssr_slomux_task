@@ -6,9 +6,10 @@
 
 // При нажатии на "старт" должен запускаться секундомер и через заданный интервал времени увеличивать свое значение на значение интервала
 // При нажатии на "стоп" секундомер должен останавливаться и сбрасывать свое значение
-import React from 'react'
+import React, { createContext } from 'react'
 import ReactDOM from 'react-dom'
-import PropTypes from 'prop-types'
+
+const SlomuxContext = createContext()
 
 const createStore = (reducer, initialState) => {
   let currentState = initialState
@@ -20,53 +21,61 @@ const createStore = (reducer, initialState) => {
     listeners.forEach(listener => listener())
   }
 
-  const subscribe = listener => listeners.push(listener)
+  const subscribe = listener => {
+    listeners.push(listener)
+
+    // Функция должна возвращать отписку
+    return function unsubscribe() {
+      const index = listeners.indexOf(listener)
+      listeners.splice(index, 1)
+    }
+  }
 
   return { getState, dispatch, subscribe }
 }
 
 const connect = (mapStateToProps, mapDispatchToProps) => Component => {
   class WrappedComponent extends React.Component {
-    render() {
-      return (
-        <Component
-          {...this.props}
-          {...mapStateToProps(this.context.store.getState(), this.props)}
-          {...mapDispatchToProps(this.context.store.dispatch, this.props)}
-        />
-      )
+    // сабскайб нужен на маунте
+    componentDidMount() {
+      this.unsubscribe = this.context.subscribe(this.handleChange)
     }
 
-    componentDidUpdate() {
-      this.context.store.subscribe(this.handleChange)
+    // для удаленных компонентов нужно выполнить отписку
+    componentWillUnmount() {
+      this.unsubscribe()
     }
 
     handleChange = () => {
       this.forceUpdate()
     }
+
+    render() {
+      return (
+        <Component
+          {...this.props}
+          {...mapStateToProps(this.context.getState(), this.props)}
+          {...mapDispatchToProps(this.context.dispatch, this.props)}
+        />
+      )
+    }
   }
 
-  WrappedComponent.contextTypes = {
-    store: PropTypes.object,
-  }
+  // Новый context api
+  WrappedComponent.contextType = SlomuxContext
 
   return WrappedComponent
 }
 
+// Устаревший context api заменяем на современный
 class Provider extends React.Component {
-  getChildContext() {
-    return {
-      store: this.props.store,
-    }
-  }
-
   render() {
-    return React.Children.only(this.props.children)
+    return (
+      <SlomuxContext.Provider value={this.props.store}>
+        {this.props.children}
+      </SlomuxContext.Provider>
+    )
   }
-}
-
-Provider.childContextTypes = {
-  store: PropTypes.object,
 }
 
 // APP
@@ -81,12 +90,14 @@ const changeInterval = value => ({
 })
 
 // reducers
-const reducer = (state, action) => {
+// Нужен начальный стейт
+const reducer = (state = 1, action) => {
   switch (action.type) {
     case CHANGE_INTERVAL:
       return (state += action.payload)
     default:
-      return {}
+      // нужно возврашать пришедший стейт
+      return state
   }
 }
 
@@ -94,6 +105,7 @@ const reducer = (state, action) => {
 
 class IntervalComponent extends React.Component {
   render() {
+    console.log(`currentInterval: ${this.props.currentInterval}`)
     return (
       <div>
         <span>
@@ -109,17 +121,20 @@ class IntervalComponent extends React.Component {
 }
 
 const Interval = connect(
-  dispatch => ({
-    changeInterval: value => dispatch(changeInterval(value)),
-  }),
+  // перепутаны аргументы
   state => ({
     currentInterval: state,
+  }),
+  dispatch => ({
+    changeInterval: value => dispatch(changeInterval(value)),
   })
 )(IntervalComponent)
 
 class TimerComponent extends React.Component {
+  //для остановки интервала нужно сохранить его в стейте
   state = {
     currentTime: 0,
+    intervalId: null,
   }
 
   render() {
@@ -135,18 +150,29 @@ class TimerComponent extends React.Component {
     )
   }
 
-  handleStart() {
-    setTimeout(
-      () =>
-        this.setState({
-          currentTime: this.state.currentTime + this.props.currentInterval,
-        }),
-      this.props.currentInterval
-    )
+  // чтобы не потерять контекст используем arrow function
+  handleStart = () => {
+    // нужна функция интервала
+    // нужно хранить интервал для возможности его удаления
+    this.setState({
+      intervalId: setInterval(
+        () =>
+          // нужно передавать не объект, а функцию
+          this.setState((state, props) => {
+            // counter - не существует в стейте, должно быть currentTime
+            return { currentTime: state.currentTime + props.currentInterval }
+          }),
+        // задержка в миллисекундах
+        this.props.currentInterval * 1000
+      ),
+    })
   }
 
-  handleStop() {
-    this.setState({ currentTime: 0 })
+  // arrow function
+  handleStop = () => {
+    // удаляем и очищаем интервал
+    clearInterval(this.state.intervalId)
+    this.setState({ intervalId: null, currentTime: 0 })
   }
 }
 
@@ -157,9 +183,12 @@ const Timer = connect(
   () => {}
 )(TimerComponent)
 
+// не объявлен начальный стейт
+const initialState = 1
+
 // init
 ReactDOM.render(
-  <Provider store={createStore(reducer)}>
+  <Provider store={createStore(reducer, initialState)}>
     <Timer />
   </Provider>,
   document.getElementById('app')
