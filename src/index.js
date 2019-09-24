@@ -94,7 +94,7 @@ const changeInterval = value => ({
 const reducer = (state = 1, action) => {
   switch (action.type) {
     case CHANGE_INTERVAL:
-      return (state += action.payload)
+      return state + action.payload < 0 ? state : (state += action.payload)
     default:
       // нужно возврашать пришедший стейт
       return state
@@ -103,7 +103,7 @@ const reducer = (state = 1, action) => {
 
 // components
 
-class IntervalComponent extends React.Component {
+class IntervalComponent extends React.PureComponent {
   render() {
     return (
       <div>
@@ -111,8 +111,16 @@ class IntervalComponent extends React.Component {
           Интервал обновления секундомера: {this.props.currentInterval} сек.
         </span>
         <span>
-          <button onClick={() => this.props.changeInterval(-1)}>-</button>
-          <button onClick={() => this.props.changeInterval(1)}>+</button>
+          <button
+            type='button'
+            onClick={() => this.props.changeInterval(-1)}
+            disabled={this.props.currentInterval === 0}
+          >
+            -
+          </button>
+          <button type='button' onClick={() => this.props.changeInterval(1)}>
+            +
+          </button>
         </span>
       </div>
     )
@@ -129,11 +137,25 @@ const Interval = connect(
   })
 )(IntervalComponent)
 
-class TimerComponent extends React.Component {
+class TimerComponent extends React.PureComponent {
   //для остановки интервала нужно сохранить его в стейте
   state = {
     currentTime: 0,
     intervalId: null,
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    if (
+      prevProps.currentInterval !== this.props.currentInterval &&
+      prevState.intervalId !== null
+    ) {
+      clearInterval(this.state.intervalId)
+      this.handleStart()
+    }
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.state.intervalId)
   }
 
   render() {
@@ -142,8 +164,20 @@ class TimerComponent extends React.Component {
         <Interval />
         <div>Секундомер: {this.state.currentTime} сек.</div>
         <div>
-          <button onClick={this.handleStart}>Старт</button>
-          <button onClick={this.handleStop}>Стоп</button>
+          <button
+            type='button'
+            onClick={this.handleStart}
+            disabled={this.props.currentInterval === 0}
+          >
+            Старт
+          </button>
+          <button
+            type='button'
+            onClick={this.handleStop}
+            disabled={this.state.intervalId === null}
+          >
+            Стоп
+          </button>
         </div>
       </div>
     )
